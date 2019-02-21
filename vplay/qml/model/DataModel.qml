@@ -1,9 +1,11 @@
-pragma Singleton
 import QtQuick 2.0
 import QtPositioning 5.3
 import Qt.labs.settings 1.0
 
 Item {
+
+  // property to configure target dispatcher / logic
+  property alias dispatcher: logicConnection.target
 
   //called when a page of listings has been received from the server
   signal listingsReceived
@@ -28,7 +30,7 @@ Item {
   readonly property var listings: _.createListingsModel(_.listings)
 
   //list model for listings list page
-  readonly property var favoriteListings: _.createListingsModel(_.favoriteListingsValues)
+  readonly property var favoriteListings: _.createListingsModel(_.favoriteListingsValues, true)
 
   //list model for search page location list
   readonly property var locations: _.createLocationsModel()
@@ -44,52 +46,64 @@ Item {
                                                PositionSource.NoPositioningMethods &&
                                                positionSource.valid
 
-  //let phone search for location, and use it instead of search
-  function useLocation() {
-    if(positionSource.position.coordinate.isValid) {
-      //already have a location
-      _.searchByLocation()
-    } else {
-      _.locationSearchPending = true
-      positionSource.update()
-    }
-  }
+  // handle logic actions
+  Connections {
+    id: logicConnection
 
-  function searchListings(searchText, addToRecents) {
-    _.lastSearchText = addToRecents ? searchText : ""
-    _.listings = []
-    client.search(searchText, _.responseCallback)
-  }
-
-  function loadNextPage() {
-    client.repeatForPage(_.currentPage + 1, _.responseCallback)
-  }
-
-  function toggleFavorite(listingData) {
-    if(!isFavorite(listingData)) {
-      _.favoriteListings[listingData.guid] = listingData
-    } else {
-      delete _.favoriteListings[listingData.guid]
+    // action 1 - useLocation
+    onUseLocation: {
+      if(positionSource.position.coordinate.isValid) {
+        //already have a location
+        _.searchByLocation()
+      } else {
+        _.locationSearchPending = true
+        positionSource.update()
+      }
     }
 
-    _.favoriteListingsChanged()
+    // action 2 - searchListings
+    onSearchListings: {
+      _.lastSearchText = addToRecents ? searchText : ""
+      _.listings = []
+      client.search(searchText, _.responseCallback)
+    }
+
+    // action 3 - showRecentSearches
+    onShowRecentSearches: {
+      _.locationSource = _.locationSourceRecent
+    }
+
+    // action 4 - loadNextPage
+    onLoadNextPage: {
+      client.repeatForPage(_.currentPage + 1, _.responseCallback)
+    }
+
+    // action 5 - toggleFavorite
+    onToggleFavorite: {
+      var listingDataStr = JSON.stringify(listingData)
+      var index =  _.favoriteListingsValues.indexOf(listingDataStr)
+
+      if(index < 0) {
+        _.favoriteListingsValues.push(listingDataStr) // add entry to favorites
+      } else {
+        _.favoriteListingsValues.splice(index, 1)  // remove entry in favorites
+      }
+
+      _.favoriteListingsValuesChanged()
+    }
   }
 
   function isFavorite(listingData) {
-    return listingData.guid in _.favoriteListings
-  }
-
-  function showRecentSearches() {
-    _.locationSource = _.locationSourceRecent
+    return _.favoriteListingsValues.indexOf(JSON.stringify(listingData)) >= 0
   }
 
   Settings {
     property string recentSearches: JSON.stringify(_.recentSearches)
-    property string favoriteListings: JSON.stringify(_.favoriteListings)
+    property string favoriteListingsValues: JSON.stringify(_.favoriteListingsValues)
 
     Component.onCompleted: {
       _.recentSearches = recentSearches && JSON.parse(recentSearches) || {}
-      _.favoriteListings = favoriteListings && JSON.parse(favoriteListings) || {}
+      _.favoriteListingsValues = favoriteListingsValues && JSON.parse(favoriteListingsValues) || []
     }
   }
 
@@ -123,9 +137,7 @@ Item {
 
     property int locationSource: locationSourceRecent
 
-    property var favoriteListings: ({})
-
-    property var favoriteListingsValues: getValues(favoriteListings)
+    property var favoriteListingsValues: []
 
     property var recentSearches: ({})
 
@@ -205,8 +217,11 @@ Item {
       })
     }
 
-    function createListingsModel(source) {
+    function createListingsModel(source, parseValues) {
       return source.map(function(data) {
+        if(parseValues)
+          data = JSON.parse(data)
+
         return {
           text: data.price_formatted,
           detailText: data.title,
@@ -221,16 +236,8 @@ Item {
         recentSearches[lastSearchText] = {
           displayText: displayText
         }
-        recentSearchesChanged()
+        _.recentSearchesChanged()
       }
-    }
-
-    //extract all values from a JS dict as array
-    function getValues(obj) {
-      return Object.keys(obj).map(
-            function(key) {
-              return obj[key]
-            })
     }
   }
 }

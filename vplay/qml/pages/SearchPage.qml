@@ -1,7 +1,5 @@
 import QtQuick 2.5
-import VPlayApps 1.0
-
-import "../model"
+import Felgo 3.0
 
 Page {
   id: searchPage
@@ -9,7 +7,7 @@ Page {
 
   rightBarItem: NavigationBarRow {
     ActivityIndicatorBarItem {
-      visible: DataModel.loading
+      visible: dataModel.loading
       showItem: showItemAlways
     }
 
@@ -31,7 +29,17 @@ Page {
     AppText {
       width: parent.width
       wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-      text: qsTr("Use the form below to search for houses to buy. You can search by place-name, postcode, or click 'My location', to search in your current location")
+      font.pixelSize: sp(12)
+      text: qsTr("Use the form below to search for houses to buy. You can search by place-name, postcode, or click 'My location', to search in your current location.")
+    }
+
+    AppText {
+      width: parent.width
+      font.pixelSize: sp(12)
+      color: Theme.secondaryTextColor
+      font.italic: true
+      text: "Hint: You can quickly find and view results by searching 'London'."
+      wrapMode: Text.WrapAtWordBoundaryOrAnywhere
     }
 
     AppTextField {
@@ -56,18 +64,18 @@ Page {
 
       AppButton {
         text: qsTr("My location")
-        enabled: DataModel.positioningSupported
+        enabled: dataModel.positioningSupported
 
         onClicked: {
           searchInput.text = ""
           searchInput.placeholderText = qsTr("Looking for location...")
-          DataModel.useLocation()
+          logic.useLocation()
         }
       }
     }
 
     AppText {
-      visible: DataModel.isError
+      visible: dataModel.isError
       text: qsTr("There was a problem with your search")
     }
   }
@@ -79,27 +87,32 @@ Page {
     anchors.top: contentCol.bottom
     anchors.bottom: parent.bottom
 
-    visible: !DataModel.isError
+    visible: !dataModel.isError
 
     // Show either the recents searches or the currently found locations depending on search mode
-    model: prepareArraySections(DataModel.isRecent ? DataModel.recentSearches : DataModel.locations)
+    model: JsonListModel {
+      source: dataModel.isRecent ? dataModel.recentSearches : dataModel.locations
+      keyField: "searchText"
+      fields: [ "searchText", "heading", "text", "model", "detailText" ]
+    }
 
     // Show a section header for listings
     section.property: "heading"
     section.delegate: SimpleSection { }
 
     delegate: SimpleRow {
+      item: listView.model.get(index)
       // do not add suggestions to recent searches
-      onSelected: DataModel.searchListings(item.searchText, false)
+      onSelected: logic.searchListings(item.searchText, false)
     }
 
-    emptyText.text: DataModel.isRecent
+    emptyText.text: dataModel.isRecent
                     ? qsTr("No recent searches.")
                     : qsTr("No suggested locations.")
   }
 
   Connections {
-    target: DataModel
+    target: dataModel
     onListingsReceived: showListings(false)
     onLocationReceived: if(searchInput.placeholderText === "Looking for location...") searchInput.placeholderText = "Search"
   }
@@ -116,10 +129,10 @@ Page {
   }
 
   function search() {
-    DataModel.searchListings(searchInput.text, true)
+    logic.searchListings(searchInput.text, true)
   }
 
   function showRecentSearches() {
-    DataModel.showRecentSearches()
+    logic.showRecentSearches()
   }
 }

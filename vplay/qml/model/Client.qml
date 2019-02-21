@@ -1,7 +1,12 @@
 import QtQuick 2.0
+import Felgo 3.0
 
 Item {
-  readonly property bool loading: _.numRequests > 0
+  readonly property bool loading: HttpNetworkActivityIndicator.enabled
+
+  Component.onCompleted: {
+    HttpNetworkActivityIndicator.activationDelay = 0
+  }
 
   //search for locations called "text"
   function search(text, callback) {
@@ -30,9 +35,6 @@ Item {
   Item {
     id: _ //private members
 
-    //number of active HTTP requests
-    property int numRequests: 0
-
     property var lastParamMap: ({})
 
     //server API URL with common parameters already included
@@ -50,36 +52,24 @@ Item {
     function sendRequest(paramMap, callback) {
       var method = "GET"
       var url = buildUrl(paramMap)
-
-      var request = new XMLHttpRequest()
-      request.onreadystatechange = readyStateChange(request, callback)
-      request.open(method, url)
-
       console.debug(method + " " + url)
-      numRequests++
-      request.send()
+
+      HttpRequest.get(url)
+      .then(function(res) {
+        var content = res.text
+        try {
+          var obj = JSON.parse(content)
+        } catch(ex) {
+          console.error("Could not parse server response as JSON:", ex)
+          return
+        }
+        console.debug("Successfully parsed JSON response")
+        callback(obj)
+      })
+      .catch(function(err) {
+      })
 
       lastParamMap = paramMap
-    }
-
-    function readyStateChange(request, callback) {
-      return function() {
-        if(request.readyState === XMLHttpRequest.DONE) {
-          console.debug("HTTP request done, response status:", request.status)
-          if(request.status === 200) {
-            var content = request.responseText
-            try {
-              var obj = JSON.parse(content)
-            } catch(ex) {
-              console.error("Could not parse server response as JSON:", ex)
-              return
-            }
-            console.debug("Successfully parsed JSON response")
-            callback(obj)
-          }
-          numRequests--
-        }
-      }
     }
   }
 }

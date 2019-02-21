@@ -1,7 +1,5 @@
 import QtQuick 2.0
-import VPlayApps 1.0
-
-import "../model"
+import Felgo 3.0
 
 ListPage {
   id: listPageWrapper
@@ -15,16 +13,20 @@ ListPage {
   }
 
   rightBarItem: ActivityIndicatorBarItem {
-    visible: DataModel.loading
+    visible: dataModel.loading
   }
 
-  model: favorites ? DataModel.favoriteListings : DataModel.listings
+  model: JsonListModel {
+    id: listModel
+    source: favorites ? dataModel.favoriteListings : dataModel.listings
+    fields: [ "text", "detailText", "image", "model" ]
+  }
 
   title: favorites
          ? qsTr("Favorites")
          : qsTr("%1 of %2 matches").arg(
-             DataModel.numListings).arg(
-             DataModel.numTotalListings)
+             dataModel.numListings).arg(
+             dataModel.numTotalListings)
 
   emptyText.text: favorites
                   ? qsTr("You have not added any properties to your favourites.")
@@ -32,15 +34,16 @@ ListPage {
 
   listView.footer: VisibilityRefreshHandler {
     // visible if NOT favorites shown and more listings are available
-    visible: !favorites && DataModel.numListings < DataModel.numTotalListings
+    visible: !favorites && dataModel.numListings < dataModel.numTotalListings
 
     onRefresh: {
       scrollPos = listView.getScrollPosition()
-      DataModel.loadNextPage()
+      logic.loadNextPage()
     }
   }
 
   delegate: SimpleRow {
+    item: listModel.get(index)
     autoSizeImage: true
     imageMaxSize: dp(40)
     image.fillMode: Image.PreserveAspectCrop

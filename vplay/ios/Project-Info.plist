@@ -53,5 +53,7 @@
   </array>
   <key>NSLocationWhenInUseUsageDescription</key>
   <string>Find listings around you.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>Find listings around you.</string>
 </dict>
 </plist>
